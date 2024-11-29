@@ -20,7 +20,7 @@ EMCCFLAGS += -s ABORT_ON_WASM_EXCEPTIONS=1
 EMCCFLAGS += -s ALLOW_MEMORY_GROWTH=1
 
 SRCS := $(shell find $(SRC_DIR) -name "*.c")
-INCDIRS := $(shell find $(SRC_DIRS) -type d)
+INCDIRS := $(shell find $(SRC_DIR) -type d)
 
 INCFLAGS := $(addprefix -iquote,$(INCDIRS))
 INCFLAGS += -I$(LIB_DIR)

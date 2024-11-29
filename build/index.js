@@ -570,7 +570,7 @@ var tempI64;
 // end include: runtime_debug.js
 // === Body ===
 var ASM_CONSTS = {
-  52469: () => {
+  52725: () => {
     if (typeof (AudioContext) !== "undefined") {
       return true;
     } else if (typeof (webkitAudioContext) !== "undefined") {
@@ -578,7 +578,7 @@ var ASM_CONSTS = {
     }
     return false;
   },
-  52616: () => {
+  52872: () => {
     if ((typeof (navigator.mediaDevices) !== "undefined") && (typeof (navigator.mediaDevices.getUserMedia) !== "undefined")) {
       return true;
     } else if (typeof (navigator.webkitGetUserMedia) !== "undefined") {
@@ -586,7 +586,7 @@ var ASM_CONSTS = {
     }
     return false;
   },
-  52850: $0 => {
+  53106: $0 => {
     if (typeof (Module["SDL2"]) === "undefined") {
       Module["SDL2"] = {};
     }
@@ -610,11 +610,11 @@ var ASM_CONSTS = {
     }
     return SDL2.audioContext === undefined ? -1 : 0;
   },
-  53402: () => {
+  53658: () => {
     var SDL2 = Module["SDL2"];
     return SDL2.audioContext.sampleRate;
   },
-  53470: ($0, $1, $2, $3) => {
+  53726: ($0, $1, $2, $3) => {
     var SDL2 = Module["SDL2"];
     var have_microphone = function(stream) {
       if (SDL2.capture.silenceTimer !== undefined) {
@@ -656,7 +656,7 @@ var ASM_CONSTS = {
       }, have_microphone, no_microphone);
     }
   },
-  55163: ($0, $1, $2, $3) => {
+  55419: ($0, $1, $2, $3) => {
     var SDL2 = Module["SDL2"];
     SDL2.audio.scriptProcessorNode = SDL2.audioContext["createScriptProcessor"]($1, 0, $0);
     SDL2.audio.scriptProcessorNode["onaudioprocess"] = function(e) {
@@ -688,7 +688,7 @@ var ASM_CONSTS = {
       SDL2.audio.silenceTimer = setInterval(silence_callback, ($1 / SDL2.audioContext.sampleRate) * 1e3);
     }
   },
-  56338: ($0, $1) => {
+  56594: ($0, $1) => {
     var SDL2 = Module["SDL2"];
     var numChannels = SDL2.capture.currentCaptureBuffer.numberOfChannels;
     for (var c = 0; c < numChannels; ++c) {
@@ -707,7 +707,7 @@ var ASM_CONSTS = {
       }
     }
   },
-  56943: ($0, $1) => {
+  57199: ($0, $1) => {
     var SDL2 = Module["SDL2"];
     var buf = $0 >>> 2;
     var numChannels = SDL2.audio.currentOutputBuffer["numberOfChannels"];
@@ -721,7 +721,7 @@ var ASM_CONSTS = {
       }
     }
   },
-  57432: $0 => {
+  57688: $0 => {
     var SDL2 = Module["SDL2"];
     if ($0) {
       if (SDL2.capture.silenceTimer !== undefined) {
@@ -755,7 +755,7 @@ var ASM_CONSTS = {
       SDL2.audioContext = undefined;
     }
   },
-  58438: ($0, $1, $2) => {
+  58694: ($0, $1, $2) => {
     var w = $0;
     var h = $1;
     var pixels = $2;
@@ -826,7 +826,7 @@ var ASM_CONSTS = {
     }
     SDL2.ctx.putImageData(SDL2.image, 0, 0);
   },
-  59906: ($0, $1, $2, $3, $4) => {
+  60162: ($0, $1, $2, $3, $4) => {
     var w = $0;
     var h = $1;
     var hot_x = $2;
@@ -863,18 +863,18 @@ var ASM_CONSTS = {
     stringToUTF8(url, urlBuf, url.length + 1);
     return urlBuf;
   },
-  60894: $0 => {
+  61150: $0 => {
     if (Module["canvas"]) {
       Module["canvas"].style["cursor"] = UTF8ToString($0);
     }
   },
-  60977: () => {
+  61233: () => {
     if (Module["canvas"]) {
       Module["canvas"].style["cursor"] = "none";
     }
   },
-  61046: () => window.innerWidth,
-  61076: () => window.innerHeight
+  61302: () => window.innerWidth,
+  61332: () => window.innerHeight
 };
 
 // end include: preamble.js
@@ -10186,7 +10186,11 @@ var wasmImports = {
   /** @export */ fd_close: _fd_close,
   /** @export */ fd_read: _fd_read,
   /** @export */ fd_seek: _fd_seek,
-  /** @export */ fd_write: _fd_write
+  /** @export */ fd_write: _fd_write,
+  /** @export */ glClear: _glClear,
+  /** @export */ glClearColor: _glClearColor,
+  /** @export */ glGetError: _glGetError,
+  /** @export */ glGetString: _glGetString
 };
 
 var wasmExports = createWasm();
