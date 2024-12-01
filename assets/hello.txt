@@ -1,0 +1,7 @@
+#shader
+this is hello.txt
+hello world
+blue is blue
+red is red
+jihyo is jihyo
+
