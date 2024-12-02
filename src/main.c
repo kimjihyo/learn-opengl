@@ -97,10 +97,6 @@ static void frame() {
   glUseProgram(g.shader);
 
   glBindVertexArray(g.vertex_array);
-  // glBindBuffer(GL_ARRAY_BUFFER, g.vertex_buffer);
-  // glEnableVertexAttribArray(0);
-  // glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
-
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.index_buffer);
 
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
@@ -132,13 +128,13 @@ int main() {
 
   SDL_GL_MakeCurrent(g.window, g.gl_ctx);
 
-  glClearColor(0.0f, 1.0f, 0.0f, 0.0f);
+  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
   float positions[] = {
-      -0.5f, -0.5f, // 0
-      0.5f,  -0.5f, // 1
-      0.5f,  0.5f,  // 2
-      -0.5f, 0.5f,  // 3
+      -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, // 0
+      0.5f,  -0.5f, 0.0f, 1.0f, 0.0f, // 1
+      0.5f,  0.5f,  0.0f, 0.0f, 1.0f, // 2
+      -0.5f, 0.5f,  1.0f, 0.0f, 0.0f, // 3
   };
 
   unsigned int indices[] = {0, 1, 2, 2, 3, 0};
@@ -148,11 +144,14 @@ int main() {
 
   glGenBuffers(1, &g.vertex_buffer);
   glBindBuffer(GL_ARRAY_BUFFER, g.vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, 6 * 2 * sizeof(float), positions,
+  glBufferData(GL_ARRAY_BUFFER, 4 * 5 * sizeof(float), positions,
                GL_STATIC_DRAW);
 
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
+                        (void *)(2 * sizeof(float)));
+  glEnableVertexAttribArray(1);
 
   glGenBuffers(1, &g.index_buffer);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.index_buffer);
