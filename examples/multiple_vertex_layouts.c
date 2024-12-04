@@ -2,10 +2,6 @@
 #include "str.h"
 #include <GLES3/gl3.h>
 #include <SDL2/SDL.h>
-#include <alloca.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -26,6 +22,37 @@ typedef struct {
 } global_t;
 
 global_t g;
+
+static void parse_shader(const char *path, char *vertex_shader,
+                         char *fragment_shader) {
+  char *file_buffer;
+  size_t n_bytes;
+  if (file_read(path, (void *)&file_buffer, &n_bytes) != 0) {
+    printf("error loading shader file\n");
+    return;
+  }
+  const char *ptr = file_buffer;
+  char line[128];
+  int shader_type = 0;
+
+  while (ptr != NULL && *ptr != '\0') {
+    ptr = strline(ptr, line, 128, NULL);
+    if (strstr(line, "#shader")) {
+      if (strstr(line, "vertex")) {
+        shader_type = 1;
+      } else if (strstr(line, "fragment")) {
+        shader_type = 2;
+      }
+    } else if (shader_type == 1) {
+      strcat(vertex_shader, line);
+      strcat(vertex_shader, "\n");
+    } else if (shader_type == 2) {
+      strcat(fragment_shader, line);
+      strcat(fragment_shader, "\n");
+    }
+  }
+  free(file_buffer);
+}
 
 static unsigned int compile_shader(unsigned int type, const char *source) {
   unsigned int id = glCreateShader(type);
@@ -70,10 +97,6 @@ static void frame() {
   glUseProgram(g.shader);
 
   glBindVertexArray(g.vertex_array);
-  // glBindBuffer(GL_ARRAY_BUFFER, g.vertex_buffer);
-  // glEnableVertexAttribArray(0);
-  // glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
-
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.index_buffer);
 
   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
@@ -105,13 +128,13 @@ int main() {
 
   SDL_GL_MakeCurrent(g.window, g.gl_ctx);
 
-  glClearColor(0.0f, 1.0f, 0.0f, 0.0f);
+  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
   float positions[] = {
-      -0.5f, -0.5f, // 0
-      0.5f,  -0.5f, // 1
-      0.5f,  0.5f,  // 2
-      -0.5f, 0.5f,  // 3
+      -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, // 0
+      0.5f,  -0.5f, 0.0f, 1.0f, 0.0f, // 1
+      0.5f,  0.5f,  0.0f, 0.0f, 1.0f, // 2
+      -0.5f, 0.5f,  1.0f, 0.0f, 0.0f, // 3
   };
 
   unsigned int indices[] = {0, 1, 2, 2, 3, 0};
@@ -121,74 +144,22 @@ int main() {
 
   glGenBuffers(1, &g.vertex_buffer);
   glBindBuffer(GL_ARRAY_BUFFER, g.vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, 6 * 2 * sizeof(float), positions,
+  glBufferData(GL_ARRAY_BUFFER, 4 * 5 * sizeof(float), positions,
                GL_STATIC_DRAW);
 
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
+                        (void *)(2 * sizeof(float)));
+  glEnableVertexAttribArray(1);
 
   glGenBuffers(1, &g.index_buffer);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.index_buffer);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices,
                GL_STATIC_DRAW);
 
-  FILE *fp = fopen("/assets/shaders/test.shader", "r");
-  char buffer[256];
-  fgets(buffer, 256, fp);
-  printf("%s", buffer);
-  fclose(fp);
-
-  char vertex_shader[256], fragment_shader[256];
-  char *file_buffer = NULL;
-  size_t n_bytes;
-  if (file_read("/assets/shaders/test.shader", (void *)file_buffer, &n_bytes) !=
-      0) {
-    printf("error loading shader file\n");
-    return 1;
-  }
-  printf("%s", file_buffer);
-  const char *ptr = file_buffer;
-  char line[128];
-  int shader_type = 0;
-
-  while (ptr != NULL && *ptr != '\0') {
-    ptr = strline(ptr, line, 128, NULL);
-    printf("%s\n", line);
-    if (strstr(line, "#shader")) {
-      if (strstr(line, "vertex")) {
-        shader_type = 1;
-      } else if (strstr(line, "fragment")) {
-        shader_type = 2;
-      }
-    } else if (shader_type == 1) {
-      strcat(vertex_shader, line);
-    } else if (shader_type == 2) {
-      strcat(fragment_shader, line);
-    }
-  }
-
-  free(file_buffer);
-
-  printf("%s\n", vertex_shader);
-  printf("----------\n");
-  printf("%s\n", fragment_shader);
-  // const char *vertex_shader = "#version 300 es\n"
-  //                             "\n"
-  //                             "layout(location = 0) in vec4 position;\n"
-  //                             "void main()\n"
-  //                             "{\n"
-  //                             " gl_Position = position;\n"
-  //                             "}\n";
-  //
-  // const char *fragment_shader = "#version 300 es\n"
-  //                               "\n"
-  //                               "precision mediump float;\n"
-  //                               "layout(location = 0) out vec4 color;\n"
-  //                               "void main()\n"
-  //                               "{\n"
-  //                               " color = vec4(1.0f, 0.0f, 0.0f, 1.0f);\n"
-  //                               "}\n";
-
+  char vertex_shader[1024], fragment_shader[1024];
+  parse_shader("/assets/shaders/test.shader", vertex_shader, fragment_shader);
   g.shader = create_shader(vertex_shader, fragment_shader);
   glUseProgram(g.shader);
 

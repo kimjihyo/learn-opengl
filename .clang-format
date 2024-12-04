@@ -1,0 +1,12 @@
+ColumnLimit: 80
+IndentWidth: 2 
+
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: true
+  AcrossComments: false
+
+AlignAfterOpenBracket: Align
+AlignArrayOfStructures: Right
+BreakStringLiterals: false
+

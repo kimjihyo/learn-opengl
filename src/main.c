@@ -1,14 +1,25 @@
-#include "file.h"
-#include "str.h"
+#define UTIL_IMPL
+#include "shader.h"
 #include <GLES3/gl3.h>
 #include <SDL2/SDL.h>
+#include <cglm/cglm.h>
+#include <stdint.h>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #define WINDOW_WIDTH 960
 #define WINDOW_HEIGHT 640
+
+typedef struct {
+  float x, y, z;
+  float r, g, b;
+  int16_t u, v;
+} vertex_t;
 
 typedef struct {
   SDL_Window *window;
@@ -18,94 +29,32 @@ typedef struct {
   unsigned int vertex_array;
   unsigned int vertex_buffer;
   unsigned int index_buffer;
-
+  unsigned int model_loc;
 } global_t;
 
 global_t g;
 
-static void parse_shader(const char *path, char *vertex_shader,
-                         char *fragment_shader) {
-  char *file_buffer;
-  size_t n_bytes;
-  if (file_read(path, (void *)&file_buffer, &n_bytes) != 0) {
-    printf("error loading shader file\n");
-    return;
-  }
-  const char *ptr = file_buffer;
-  char line[128];
-  int shader_type = 0;
-
-  while (ptr != NULL && *ptr != '\0') {
-    ptr = strline(ptr, line, 128, NULL);
-    if (strstr(line, "#shader")) {
-      if (strstr(line, "vertex")) {
-        shader_type = 1;
-      } else if (strstr(line, "fragment")) {
-        shader_type = 2;
-      }
-    } else if (shader_type == 1) {
-      strcat(vertex_shader, line);
-      strcat(vertex_shader, "\n");
-    } else if (shader_type == 2) {
-      strcat(fragment_shader, line);
-      strcat(fragment_shader, "\n");
-    }
-  }
-  free(file_buffer);
-}
-
-static unsigned int compile_shader(unsigned int type, const char *source) {
-  unsigned int id = glCreateShader(type);
-  glShaderSource(id, 1, &source, NULL);
-  glCompileShader(id);
-
-  int result;
-  glGetShaderiv(id, GL_COMPILE_STATUS, &result);
-  if (result == GL_FALSE) {
-    int length;
-    glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
-    char *message = (char *)alloca(length * sizeof(char));
-    glGetShaderInfoLog(id, length, &length, message);
-    const char *shader_type =
-        type == GL_VERTEX_SHADER ? "vertex_shader" : "fragment_shader";
-    printf("error compiling %s: %s", shader_type, message);
-    glDeleteShader(id);
-    return 0;
-  }
-  return id;
-}
-
-static unsigned int create_shader(const char *vertex_shader,
-                                  const char *fragment_shader) {
-  unsigned int program = glCreateProgram();
-  unsigned int vs = compile_shader(GL_VERTEX_SHADER, vertex_shader);
-  unsigned int fs = compile_shader(GL_FRAGMENT_SHADER, fragment_shader);
-
-  glAttachShader(program, vs);
-  glAttachShader(program, fs);
-  glLinkProgram(program);
-  glValidateProgram(program);
-  glDeleteShader(vs);
-  glDeleteShader(fs);
-
-  return program;
-}
-
 static void frame() {
-  glClear(GL_COLOR_BUFFER_BIT);
+  uint32_t ticks = SDL_GetTicks();
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   glUseProgram(g.shader);
 
   glBindVertexArray(g.vertex_array);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.index_buffer);
 
-  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
+  mat4 model = GLM_MAT4_IDENTITY_INIT;
+  glm_rotate(model, glm_rad((float)ticks * 0.1f), (vec3){1.0f, 1.0f, 0.0f});
+  glUniformMatrix4fv(g.model_loc, 1, GL_FALSE, (float *)model);
+
+  glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, NULL);
+
   SDL_GL_SwapWindow(g.window);
 }
 
 int main() {
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-    printf("error initializing SDL: %s", SDL_GetError());
+    printf("error initializing SDL");
     return 1;
   }
 
@@ -113,55 +62,133 @@ int main() {
       "Learn OpenGL", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
       WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
 
-  if (!g.window) {
-    printf("error initializing window: %s\n", SDL_GetError());
-  }
-
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
   g.gl_ctx = SDL_GL_CreateContext(g.window);
 
-  printf("GL Version = %s\n", glGetString(GL_VERSION));
-  printf("GLSL Version = %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+  printf("GL Version "
+         "= %s\n",
+         glGetString(GL_VERSION));
+  printf("GLSL "
+         "Version = "
+         "%s\n",
+         glGetString(GL_SHADING_LANGUAGE_VERSION));
 
   SDL_GL_MakeCurrent(g.window, g.gl_ctx);
 
-  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+  glEnable(GL_DEPTH_TEST);
+  glClearColor(0.0f, 0.0f, 0.5f, 0.0f);
 
-  float positions[] = {
-      -0.5f, -0.5f, 1.0f, 0.0f, 0.0f, // 0
-      0.5f,  -0.5f, 0.0f, 1.0f, 0.0f, // 1
-      0.5f,  0.5f,  0.0f, 0.0f, 1.0f, // 2
-      -0.5f, 0.5f,  1.0f, 0.0f, 0.0f, // 3
+  vertex_t vertices[] = {
+      {-0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0, 0},
+      { 0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 1, 0},
+      { 0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 1, 1},
+      {-0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0, 1},
+
+      {-0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0, 0},
+      { 0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 1, 0},
+      { 0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 1, 1},
+      {-0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0, 1},
+
+      { 0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0, 0},
+      { 0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 1, 0},
+      { 0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 1, 1},
+      { 0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0, 1},
+
+      {-0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0, 0},
+      { 0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 1, 0},
+      { 0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 1, 1},
+      {-0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0, 1},
+
+      {-0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0, 0},
+      {-0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 1, 0},
+      {-0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 1, 1},
+      {-0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0, 1},
+      //
+      {-0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0, 0},
+      { 0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 1, 0},
+      { 0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 1, 1},
+      {-0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0, 1},
   };
 
-  unsigned int indices[] = {0, 1, 2, 2, 3, 0};
+  unsigned int indices[] = {
+      0,  1,  2,  2,  3,  0,  // bottom
+      4,  5,  6,  6,  7,  4,  // top
+      8,  9,  10, 10, 11, 8,  // right
+      12, 13, 14, 14, 15, 12, // back
+      16, 17, 18, 18, 19, 16, // left
+      20, 21, 22, 22, 23, 20, // front
+  };
 
   glGenVertexArrays(1, &g.vertex_array);
   glBindVertexArray(g.vertex_array);
 
   glGenBuffers(1, &g.vertex_buffer);
   glBindBuffer(GL_ARRAY_BUFFER, g.vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, 4 * 5 * sizeof(float), positions,
+  // glBufferData(GL_ARRAY_BUFFER, 4 * sizeof(vertex_t), vertices,
+  // GL_STATIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, 24 * sizeof(vertex_t), vertices,
                GL_STATIC_DRAW);
 
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_t), 0);
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
-                        (void *)(2 * sizeof(float)));
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vertex_t),
+                        (void *)(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
+  glVertexAttribPointer(2, 2, GL_UNSIGNED_SHORT, GL_FALSE, sizeof(vertex_t),
+                        (void *)(3 * sizeof(float) + 3 * sizeof(float)));
+  glEnableVertexAttribArray(2);
 
   glGenBuffers(1, &g.index_buffer);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.index_buffer);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices,
+  // glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices,
+  //              GL_STATIC_DRAW);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, 36 * sizeof(unsigned int), indices,
                GL_STATIC_DRAW);
+  stbi_set_flip_vertically_on_load(1);
+  int width, height, channels;
+  unsigned char *tex_data =
+      stbi_load("/assets/nikke.png", &width, &height, &channels, 4);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+  unsigned int texture;
+  glGenTextures(1, &texture);
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, texture);
+
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA,
+               GL_UNSIGNED_BYTE, tex_data);
+
+  glGenerateMipmap(GL_TEXTURE_2D);
+  stbi_image_free(tex_data);
 
   char vertex_shader[1024], fragment_shader[1024];
   parse_shader("/assets/shaders/test.shader", vertex_shader, fragment_shader);
   g.shader = create_shader(vertex_shader, fragment_shader);
   glUseProgram(g.shader);
+
+  mat4 model                  = GLM_MAT4_IDENTITY_INIT;
+  mat4 view                   = GLM_MAT4_IDENTITY_INIT;
+  mat4 projection             = GLM_MAT4_IDENTITY_INIT;
+
+  g.model_loc                 = glGetUniformLocation(g.shader, "model");
+  unsigned int view_loc       = glGetUniformLocation(g.shader, "view");
+  unsigned int projection_loc = glGetUniformLocation(g.shader, "projection");
+
+  glm_rotate(model, glm_rad(-55.0f), (vec3){1.0f, 0.0f, 0.0f});
+  glm_translate(view, (vec3){0.0f, 0.0f, -5.0f});
+  glm_perspective(glm_rad(45.0f), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT,
+                  0.1f, 100.0f, projection);
+
+  glUniformMatrix4fv(g.model_loc, 1, GL_FALSE, (float *)model);
+  glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float *)view);
+  glUniformMatrix4fv(projection_loc, 1, GL_FALSE, (float *)projection);
 
   // Unbind buffers
   glUseProgram(0);
