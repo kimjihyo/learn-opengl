@@ -3,6 +3,7 @@
 #include <GLES3/gl3.h>
 #include <SDL2/SDL.h>
 #include <cglm/cglm.h>
+#include <math.h>
 #include <stdint.h>
 
 #ifdef __EMSCRIPTEN__
@@ -30,9 +31,27 @@ typedef struct {
   unsigned int vertex_buffer;
   unsigned int index_buffer;
   unsigned int model_loc;
+  unsigned int view_loc;
+
+  vec3 camera_pos;
+  vec3 camera_front;
+  vec3 camera_up;
 } global_t;
 
 global_t g;
+
+vec3 cube_positions[] = {
+    { 0.0f,  0.0f,   0.0f},
+    { 2.0f,  5.0f, -15.0f},
+    {-1.5f, -2.2f,  -2.5f},
+    {-3.8f, -2.0f, -12.3f},
+    { 2.4f, -0.4f,  -3.5f},
+    {-1.7f,  3.0f,  -7.5f},
+    { 1.3f, -2.0f,  -2.5f},
+    { 1.5f,  2.0f,  -2.5f},
+    { 1.5f,  0.2f,  -1.5f},
+    {-1.3f,  1.0f,  -1.5f}
+};
 
 static void frame() {
   uint32_t ticks = SDL_GetTicks();
@@ -43,11 +62,19 @@ static void frame() {
   glBindVertexArray(g.vertex_array);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.index_buffer);
 
-  mat4 model = GLM_MAT4_IDENTITY_INIT;
-  glm_rotate(model, glm_rad((float)ticks * 0.1f), (vec3){1.0f, 1.0f, 0.0f});
-  glUniformMatrix4fv(g.model_loc, 1, GL_FALSE, (float *)model);
+  mat4 view;
+  vec3 cam_dir;
+  glm_vec3_add(g.camera_pos, g.camera_front, cam_dir);
+  glm_lookat(g.camera_pos, cam_dir, g.camera_up, view);
+  glUniformMatrix4fv(g.view_loc, 1, GL_FALSE, (float *)view);
 
-  glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, NULL);
+  for (int i = 0; i < 10; i++) {
+    mat4 model = GLM_MAT4_IDENTITY_INIT;
+    glm_translate(model, cube_positions[i]);
+    glm_rotate(model, glm_rad(ticks * 0.1f), (vec3){1.0f, 0.3f, 0.5f});
+    glUniformMatrix4fv(g.model_loc, 1, GL_FALSE, (float *)model);
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, NULL);
+  }
 
   SDL_GL_SwapWindow(g.window);
 }
@@ -106,7 +133,7 @@ int main() {
       {-0.5f,  0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 1, 0},
       {-0.5f,  0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 1, 1},
       {-0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 0, 1},
-      //
+
       {-0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 0, 0},
       { 0.5f, -0.5f, -0.5f, 1.0f, 1.0f, 1.0f, 1, 0},
       { 0.5f, -0.5f,  0.5f, 1.0f, 1.0f, 1.0f, 1, 1},
@@ -178,16 +205,16 @@ int main() {
   mat4 projection             = GLM_MAT4_IDENTITY_INIT;
 
   g.model_loc                 = glGetUniformLocation(g.shader, "model");
-  unsigned int view_loc       = glGetUniformLocation(g.shader, "view");
+  g.view_loc                  = glGetUniformLocation(g.shader, "view");
   unsigned int projection_loc = glGetUniformLocation(g.shader, "projection");
 
   glm_rotate(model, glm_rad(-55.0f), (vec3){1.0f, 0.0f, 0.0f});
-  glm_translate(view, (vec3){0.0f, 0.0f, -5.0f});
+  // glm_translate(view, (vec3){0.0f, 0.0f, -5.0f});
   glm_perspective(glm_rad(45.0f), (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT,
                   0.1f, 100.0f, projection);
 
   glUniformMatrix4fv(g.model_loc, 1, GL_FALSE, (float *)model);
-  glUniformMatrix4fv(view_loc, 1, GL_FALSE, (float *)view);
+  glUniformMatrix4fv(g.view_loc, 1, GL_FALSE, (float *)view);
   glUniformMatrix4fv(projection_loc, 1, GL_FALSE, (float *)projection);
 
   // Unbind buffers
@@ -195,6 +222,16 @@ int main() {
   glBindVertexArray(0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+  g.camera_pos[0]   = 0.0f;
+  g.camera_pos[1]   = 0.0f;
+  g.camera_pos[2]   = 3.0f;
+  g.camera_front[0] = 0.0f;
+  g.camera_front[1] = 0.0f;
+  g.camera_front[2] = -1.0f;
+  g.camera_up[0]    = 0.0f;
+  g.camera_up[1]    = 1.0f;
+  g.camera_up[2]    = 0.0f;
 
 #ifdef __EMSCRIPTEN__
   emscripten_set_main_loop(frame, 0, 1);
